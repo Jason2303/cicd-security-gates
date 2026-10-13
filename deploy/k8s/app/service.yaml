@@ -1,0 +1,12 @@
+# Per-colour Service (pulse-blue / pulse-green). The deploy script smoke-tests
+# the idle colour through this before any real traffic reaches it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulse
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

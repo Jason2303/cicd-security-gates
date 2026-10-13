@@ -1,0 +1,68 @@
+# Colourless template. colors/blue and colors/green each stamp out a copy
+# with a -blue/-green suffix and a `color` label on metadata, selector and pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulse
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      # Created/refreshed by the deploy job from a short-lived ECR token.
+      imagePullSecrets:
+        - name: ecr-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pulse
+          image: pulse # rewritten by the overlay (registry) and deploy script (tag)
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: COLOR
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['color']
+            - name: ENVIRONMENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SHUTDOWN_DELAY
+              value: "5s"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

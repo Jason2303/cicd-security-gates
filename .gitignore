@@ -1,0 +1,9 @@
+coverage.out
+*.test
+/bin/
+/pulse
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate*
+infra/*.tfplan

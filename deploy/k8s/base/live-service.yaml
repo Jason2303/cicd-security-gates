@@ -1,0 +1,19 @@
+# The live router. Its `color` selector is the blue-green switch: the deploy
+# script patches it to cut over and patches it back to roll back.
+# It deliberately has no `color` label, so `kubectl apply -l color=<c>` never
+# touches it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulse
+  labels:
+    role: live
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: pulse
+    color: blue # initial value only; owned by the deploy script after bootstrap
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
