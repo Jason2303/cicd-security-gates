@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-type statusBody struct {
+    type statusBody struct {
 	Status string `json:"status"`
 	Reason string `json:"reason,omitempty"`
 }
