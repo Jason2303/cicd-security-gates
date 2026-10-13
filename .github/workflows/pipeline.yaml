@@ -16,7 +16,7 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
-     
+
     steps:
       # Get the code
       - name: Checkout Code for linting
@@ -44,24 +44,22 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: 'v2.14.0'
+          version: "v2.14.0"
 
       # Run hadolint to check Dockerfile best practices in the Dockerfile using hadolint
       - name: hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
- 
 
-# Test job
+  # Test job
   test:
     runs-on: ubuntu-latest
     steps:
-   
       # Gets the code for the test
       - name: checkout code for test
         uses: actions/checkout@v5
-      
+
       # Sets up Go for the test
       - name: setup go test
         uses: actions/setup-go@v5
@@ -71,7 +69,7 @@ jobs:
       # Install dependencies
       - name: go dependencies
         run: go mod download
-  
+
       # Run Go test with Coverage
       - name: Go tests with Coverage
         run: go test -race -coverprofile=coverage.out ./...
@@ -81,7 +79,7 @@ jobs:
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Current overall test coverage is: $COVERAGE%"
-          
+
           # Check if coverage is less than 70%
           if (( $(echo "$COVERAGE < 70.0" | bc -l) )); then
             echo "Code coverage is below the minimum required 70% "
@@ -89,21 +87,21 @@ jobs:
           fi
           echo "Code coverage passed the 70% gate."
 
-# Static Application Security Testing
+  # Static Application Security Testing
   sast:
-      runs-on: ubuntu-latest
-      # Get semgrep from an image
-      container:
-          image: semgrep/semgrep
-          steps:
+    runs-on: ubuntu-latest
+    # Get semgrep from an image
+    container:
+      image: semgrep/semgrep
+    steps:
       - name: Checkout Code
         uses: actions/checkout@v5
-        
+
       # Get high severities
       - name: Look for High Severities Only and Fail
-        run: semgrep scan --config="p/golang" --severity="ERROR" --error 
+        run: semgrep scan --config="p/golang" --severity="ERROR" --error
 
-# Checks for Go vulnerabilities within the code
+  # Checks for Go vulnerabilities within the code
   deps:
     runs-on: ubuntu-latest
     steps:
@@ -111,6 +109,4 @@ jobs:
       - name: govulcheck
         uses: golang/govulncheck-action@v1
         with:
-          go-version-file: 'go.mod'
-      
-
+          go-version-file: "go.mod"
