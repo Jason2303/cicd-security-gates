@@ -44,7 +44,8 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: 'v2.13'
+          version: 'v2.13.2'
+          install-mode: goinstall
 
       # Run hadolint to check Dockerfile best practices in the Dockerfile using hadolint
       - name: hadolint
