@@ -44,8 +44,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: 'v2.13.2'
-          install-mode: goinstall
+          version: 'v2.14.0'
 
       # Run hadolint to check Dockerfile best practices in the Dockerfile using hadolint
       - name: hadolint
@@ -55,4 +54,37 @@ jobs:
  
 
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+   
+      # Gets the code for the test
+      - name: checkout code for test
+        uses: actions/checkout@v5
+      
+      # Sets up Go for the test
+      - name: setup go test
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Install dependencies
+      - name: go dependencies
+        run: go mod download
   
+      # Run Go test with Coverage
+      - name: Go tests with Coverage
+        run: go test -race -coverprofile=coverage.out ./...
+
+      # 70% Coverage Gate
+      - name: 70% Coverage Gate
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Current overall test coverage is: $COVERAGE%"
+          
+          # Check if coverage is less than 70%
+          if (( $(echo "$COVERAGE < 70.0" | bc -l) )); then
+            echo "Code coverage is below the minimum required 70% "
+            exit 1
+          fi
+          echo "Code coverage passed the 70% gate."
