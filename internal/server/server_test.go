@@ -170,7 +170,10 @@ func TestServeReturnsListenerError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln.Close() // Serve will fail immediately on a closed listener.
+	// Serve will fail immediately on a closed listener.
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
 	s, _ := testServer(t, Config{})
 	if err := s.Serve(context.Background(), ln); err == nil {
 		t.Fatal("expected error from closed listener")
@@ -182,7 +185,7 @@ func status(url string) int {
 	if err != nil {
 		return 0
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode
 }
