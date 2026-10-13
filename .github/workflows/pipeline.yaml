@@ -1,0 +1,57 @@
+name: pipeline
+
+# Triggers starting the workflow
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Default permissions
+permissions:
+  contents: read
+
+# Job for the lintr
+jobs:
+  lint:
+    name: code linter
+    runs-on: ubuntu-latest
+     
+    steps:
+      # Get the code
+      - name: Checkout Code for linting
+        uses: actions/checkout@v5
+
+      # Set up Go on the runner to help run the lint
+      - name: Set up Go for linting
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Check for any code formatting issues
+      - name: gofmt formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "The following Go files are not properly formatted:"
+            gofmt -l .
+            echo "Run 'gofmt -w .' locally to fix them before pushing."
+            exit 1
+          else
+            echo "All Go files are perfectly formatted!"
+          fi
+
+      # Run multiple linters simultaneously using golangci-lint
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: 'v2.13'
+
+      # Run hadolint to check Dockerfile best practices in the Dockerfile using hadolint
+      - name: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+ 
+
+
+  
