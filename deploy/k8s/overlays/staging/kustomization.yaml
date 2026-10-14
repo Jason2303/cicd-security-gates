@@ -5,7 +5,7 @@ resources:
   - ../../base
 images:
   - name: pulse
-    newName: 355119163695.dkr.ecr.us-east-1.amazonaws.com/pulse
+    newName: 355119163695.dkr.ecr.us-east-1.amazonaws.com/cicd/cicdsecuritypipeline
     newTag: set-by-deploy-script
 patches:
   - target:
