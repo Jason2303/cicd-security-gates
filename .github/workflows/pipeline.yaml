@@ -23,7 +23,7 @@ permissions:
 jobs:
   lint:
     name: lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       # Get the code
@@ -37,6 +37,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version-file: go.mod
+          cache-dependency-path: ./go.mod
 
       # Check for any code formatting issues
       - name: gofmt formatting
@@ -65,7 +66,7 @@ jobs:
 
   # Test job
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       # Gets the code for the test
       - name: checkout code for test
@@ -78,6 +79,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version-file: go.mod
+          cache-dependency-path: ./go.mod
 
       # Install dependencies
       - name: go dependencies
@@ -86,6 +88,8 @@ jobs:
       # Run Go test with Coverage
       - name: Go tests with Coverage
         run: go test -race -coverprofile=coverage.out ./...
+        with:
+          cache-dependency-path: ./go.mod
 
       # 70% Coverage Gate
       - name: 70% Coverage Gate
@@ -102,7 +106,7 @@ jobs:
 
   # Static Application Security Testing
   sast:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Get semgrep from an image
     container:
       image: semgrep/semgrep
@@ -114,25 +118,29 @@ jobs:
       # Get high severities
       - name: Look for High Severities Only and Fail
         run: semgrep scan --config="p/golang" --severity="ERROR" --error
+        with:
+          cache-dependency-path: ./go.mod
 
   # Checks for Go vulnerabilities within the code
   deps:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       # Checks for Go vulnerabilities
       - name: govulcheck
         # govulncheck-action v1.1.0
         uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f
         with:
-          go-version-file: "go.mod"
+          cache-dependency-path: ./go.mod
 
+  # Build, Scan, Tag and Push the Image to ECR
   build:
     # Need to include a write permission to get Github ID card
     permissions:
       contents: read
       id-token: write
+    # All tests must pass before build runs
     needs: [lint, test, sast, deps]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     # Artifact for later (Repo Digest for the image when pushed to ECR)
     outputs:
