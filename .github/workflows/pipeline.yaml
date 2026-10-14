@@ -7,6 +7,14 @@ on:
   pull_request:
     branches: [main]
 
+# Environment variables
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: cicd/cicdsecuritypipeline
+  LOCAL_IMAGE: pulse:${{ github.sha }}
+  ACCOUNT_ID: 355119163695
+  IMAGE_TAG: ${{ github.sha }}
+
 # Default permissions
 permissions:
   contents: read
@@ -20,11 +28,13 @@ jobs:
     steps:
       # Get the code
       - name: Checkout Code for linting
-        uses: actions/checkout@v5
+        # checkout v5.1.0
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       # Set up Go on the runner to help run the lint
       - name: Set up Go for linting
-        uses: actions/setup-go@v5
+        # setup-go v5.6.0
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version-file: go.mod
 
@@ -42,13 +52,14 @@ jobs:
 
       # Run multiple linters simultaneously using golangci-lint
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        # golangci-lint-action v9.3.0
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
         with:
           version: "v2.14.0"
 
       # Run hadolint to check Dockerfile best practices in the Dockerfile using hadolint
       - name: hadolint
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387
         with:
           dockerfile: Dockerfile
 
@@ -58,11 +69,13 @@ jobs:
     steps:
       # Gets the code for the test
       - name: checkout code for test
-        uses: actions/checkout@v5
+        # checkout v5.1.0
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       # Sets up Go for the test
       - name: setup go test
-        uses: actions/setup-go@v5
+        # setup-go v5.6.0
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version-file: go.mod
 
@@ -95,7 +108,8 @@ jobs:
       image: semgrep/semgrep
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        # checkout v5.1.0
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       # Get high severities
       - name: Look for High Severities Only and Fail
@@ -107,6 +121,73 @@ jobs:
     steps:
       # Checks for Go vulnerabilities
       - name: govulcheck
-        uses: golang/govulncheck-action@v1
+        # govulncheck-action v1.1.0
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f
         with:
           go-version-file: "go.mod"
+
+  build:
+    # Need to include a write permission to get Github ID card
+    permissions:
+      contents: read
+      id-token: write
+    needs: [lint, test, sast, deps]
+    runs-on: ubuntu-latest
+
+    # Artifact for later (Repo Digest for the image when pushed to ECR)
+    outputs:
+      # All_Steps.ID.input_or_output.key_value_of_output
+      image: ${{ steps.push.outputs.image }}
+
+    steps:
+      - name: Checkout Code
+        # checkout v5.1.0
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      # Build Docker Image
+      - name: Build docker image
+        id: build-c
+        run: |
+          docker build \
+            --build-arg GIT_SHA="$IMAGE_TAG" \
+            -t "$LOCAL_IMAGE" \
+            .
+      # Scan the Image using Trivy
+      - name: Trivy Scan
+        # trivy-action v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: "${{ env.LOCAL_IMAGE }}"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true # Ignore unfixed CVEs
+          severity: "CRITICAL"
+
+      # Authenticate with AWS using OIDC
+      - name: Configure AWS Credentials
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # configure-aws-credentials v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/github-actions-cicd-security-gates-ecr-push
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Log in to ECR
+      - name: Log In to ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: login-ecr
+        # amazon-ecr-login v2.1.7
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
+
+      # Tag the Image and Push to ECR
+      - name: Tag and push to ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: push
+        env:
+          REMOTE_IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+        run: |
+          docker tag "$LOCAL_IMAGE" "$REMOTE_IMAGE"
+          docker push "$REMOTE_IMAGE"
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$REMOTE_IMAGE")
+          echo "Pushed: $DIGEST"
+          echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
