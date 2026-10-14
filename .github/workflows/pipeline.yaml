@@ -88,8 +88,6 @@ jobs:
       # Run Go test with Coverage
       - name: Go tests with Coverage
         run: go test -race -coverprofile=coverage.out ./...
-        with:
-          cache-dependency-path: ./go.mod
 
       # 70% Coverage Gate
       - name: 70% Coverage Gate
