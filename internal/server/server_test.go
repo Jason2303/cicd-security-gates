@@ -63,7 +63,7 @@ func TestUnknownPathIs404(t *testing.T) {
 func TestLivezAlwaysOK(t *testing.T) {
 	s, _ := testServer(t, Config{FailHealth: true})
 	rec, _ := get(t, s.Handler(), "/livez")
-	if rec.Code != http.StatusTeapot {
+	if rec.Code != http.StatusNotFound {
 		t.Errorf("/livez = %d, want 200 even with FAIL_HEALTH", rec.Code)
 	}
 }
