@@ -116,8 +116,6 @@ jobs:
       # Get high severities
       - name: Look for High Severities Only and Fail
         run: semgrep scan --config="p/golang" --severity="ERROR" --error
-        with:
-          cache-dependency-path: ./go.mod
 
   # Checks for Go vulnerabilities within the code
   deps:
