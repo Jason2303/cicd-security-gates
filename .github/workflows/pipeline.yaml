@@ -163,14 +163,6 @@ jobs:
           ignore-unfixed: true # Ignore unfixed CVEs
           severity: "CRITICAL"
 
-      # TEMPORARY: print what GitHub's ID card says, to debug the trust policy
-      - name: Debug OIDC claims
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
-          python3 -c 'import sys,json,base64; p=sys.argv[1].split(".")[1]; p+="="*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(json.dumps({k:c.get(k) for k in ("iss","aud","sub")}, indent=2))' "$TOKEN"
-
       # Authenticate with AWS using OIDC
       - name: Configure AWS Credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
