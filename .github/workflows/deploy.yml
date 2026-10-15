@@ -24,6 +24,17 @@ jobs:
     concurrency: deploy-${{ inputs.environment }}
 
     steps:
+      - name: DEBUG print OIDC sub (temporary)
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
+            | python3 -c 'import sys,json; print(json.load(sys.stdin)["value"])')
+          echo "$TOKEN" | cut -d. -f2 | python3 -c '
+          import sys, base64, json
+          p = sys.stdin.read().strip(); p += "=" * (-len(p) % 4)
+          c = json.loads(base64.urlsafe_b64decode(p))
+          print("sub:", c["sub"]); print("aud:", c["aud"])'
+
       - name: Image must not be empty
         env:
           IMAGE: ${{ inputs.image }}
