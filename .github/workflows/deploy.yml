@@ -1,0 +1,52 @@
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image:
+        required: true
+        type: string
+
+env:
+  ACCOUNT_ID: 355119163695
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, kind]
+    environment: ${{ inputs.environment }}
+    concurrency: deploy-${{ inputs.environment }}
+
+    steps:
+      - name: Image must not be empty
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          if [[ -z "$IMAGE" ]]; then
+            echo "::error::Image input is empty. Refusing to deploy"
+            exit 1
+          fi
+          echo "Deploying $IMAGE"
+
+      - name: Checkout
+        # checkout v5.1.0
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Configure AWS credentials (pull role)
+        # configure-aws-credentials v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/github-actions-cicd-security-gates-ecr-pull
+          aws-region: us-east-1
+
+      - name: Blue-green deploy
+        env:
+          NAMESPACE: ${{ inputs.environment }}
+          IMAGE: ${{ inputs.image }}
+        run: bash deploy/deploy.sh "$NAMESPACE" "$IMAGE"

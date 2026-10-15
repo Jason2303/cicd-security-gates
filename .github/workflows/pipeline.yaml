@@ -195,3 +195,25 @@ jobs:
           DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$REMOTE_IMAGE")
           echo "Pushed: $DIGEST"
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
+
+  staging:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: staging
+      image: ${{ needs.build.outputs.image }}
+
+production:
+  needs: [build, staging]
+  if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  permissions:
+    contents: read
+    id-token: write
+  uses: ./.github/workflows/deploy.yml
+  with:
+    environment: production
+    image: ${{ needs.build.outputs.image }}
