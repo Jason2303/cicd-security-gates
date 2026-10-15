@@ -207,13 +207,13 @@ jobs:
       environment: staging
       image: ${{ needs.build.outputs.image }}
 
-production:
-  needs: [build, staging]
-  if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-  permissions:
-    contents: read
-    id-token: write
-  uses: ./.github/workflows/deploy.yml
-  with:
-    environment: production
-    image: ${{ needs.build.outputs.image }}
+  production:
+    needs: [build, staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      image: ${{ needs.build.outputs.image }}
