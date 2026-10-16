@@ -217,3 +217,48 @@ jobs:
     with:
       environment: production
       image: ${{ needs.build.outputs.image }}
+
+  notify:
+    needs: [lint, test, sast, deps, build, staging, production]
+    if: always()
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Write pipeline summary
+        env:
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+          LINT: ${{ needs.lint.result }}
+          TEST: ${{ needs.test.result }}
+          SAST: ${{ needs.sast.result }}
+          DEPS: ${{ needs.deps.result }}
+          BUILD: ${{ needs.build.result }}
+          STAGING: ${{ needs.staging.result }}
+          PRODUCTION: ${{ needs.production.result }}
+          IMAGE: ${{ needs.build.outputs.image }}
+          INJECT_FAILURE: ${{ inputs.inject_failure == true }}
+        run: |
+          icon() {
+            case "$1" in
+              success) echo "Success" ;;
+              failure) echo "Failure" ;;
+              cancelled) echo "Cancelled" ;;
+              *) echo "$1" ;;
+            esac
+          }
+          {
+            echo "## Pipeline result"
+            echo ""
+            echo "Trigger: \`$EVENT\` · Commit: \`${SHA:0:7}\` · Rollback test: \`$INJECT_FAILURE\`"
+            echo ""
+            echo "| Stage | Result |"
+            echo "|---|---|"
+            echo "| lint | $(icon "$LINT") |"
+            echo "| test | $(icon "$TEST") |"
+            echo "| sast | $(icon "$SAST") |"
+            echo "| deps | $(icon "$DEPS") |"
+            echo "| build | $(icon "$BUILD") |"
+            echo "| staging | $(icon "$STAGING") |"
+            echo "| production | $(icon "$PRODUCTION") |"
+            echo ""
+            echo "Image: \`${IMAGE:-not pushed}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -49,4 +49,5 @@ jobs:
         env:
           NAMESPACE: ${{ inputs.environment }}
           IMAGE: ${{ inputs.image }}
+          INJECT_FAILURE: ${{ inputs.inject_failure }}
         run: bash deploy/deploy.sh "$NAMESPACE" "$IMAGE"
