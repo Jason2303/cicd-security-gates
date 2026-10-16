@@ -63,6 +63,7 @@ jobs:
 
       # Run hadolint to check Dockerfile best practices in the Dockerfile using hadolint
       - name: hadolint
+        # hadolint-action v3.5.0
         uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387
         with:
           dockerfile: Dockerfile
