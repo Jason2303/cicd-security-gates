@@ -69,7 +69,7 @@ if ! kill -0 "$PF_PID" 2>/dev/null; then
 fi
 
 # If the health check failed, it means the Idle pod has an issue and can't be used
-if ! curl -fsS --retry 5 --retry-delay 2 --retry-connrefused http://127.0.0.1:18080/healthz; then
+if ! curl -fsS --retry 3 --retry-delay 2 --retry-all-errors http://127.0.0.1:18081/healthz >/dev/null; then
   echo "::error::Smoke test FAILED on $IDLE"
   exit 1
 fi
@@ -120,8 +120,15 @@ if [[ "$BOOTSTRAP" == "true" ]]; then
   exit 1
 fi
 
-# Roll back to the Live if Idle fails
-kubectl patch svc pulse -n "$NAMESPACE" -p "{\"spec\":{\"selector\":{\"color\":\"$LIVE\"}}}"
-echo "ROLLED BACK: live traffic returned to $LIVE"
+# Roll back to the colour that was live at the start. Retry: a busy cluster can refuse one attempt
+for attempt in 1 2 3 4 5 6; do
+  if kubectl patch svc pulse -n "$NAMESPACE" -p "{\"spec\":{\"selector\":{\"color\":\"$LIVE\"}}}"; then
+    echo "ROLLED BACK: live traffic returned to $LIVE"
+    exit 1
+  fi
+  echo "Rollback attempt $attempt/6 failed, retrying in 10 s"
+  sleep 10
+done
+echo "::error::ROLLBACK FAILED: live traffic is still on $IDLE. Patch the pulse Service back to $LIVE by hand"
 exit 1
 
