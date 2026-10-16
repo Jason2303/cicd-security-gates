@@ -69,7 +69,7 @@ if ! kill -0 "$PF_PID" 2>/dev/null; then
 fi
 
 # If the health check failed, it means the Idle pod has an issue and can't be used
-if ! curl -fsS --retry 3 --retry-delay 2 --retry-all-errors http://127.0.0.1:18081/healthz >/dev/null; then
+if ! curl -fsS --retry 5 --retry-delay 2 --retry-connrefused http://127.0.0.1:18080/healthz; then
   echo "::error::Smoke test FAILED on $IDLE"
   exit 1
 fi
@@ -98,7 +98,7 @@ fi
 # Health check for the live deployment
 for i in $(seq 1 30); do
   [[ "$HEALTHY" == "true" ]] || break
-  if ! curl -fsS --retry 2 --retry-delay 2 --retry-connrefused http://127.0.0.1:18081/healthz >/dev/null; then
+  if ! curl -fsS --retry 3 --retry-delay 2 --retry-all-errors http://127.0.0.1:18081/healthz >/dev/null; then
     echo "Health check $i/30 FAILED"
     HEALTHY=false
     break
