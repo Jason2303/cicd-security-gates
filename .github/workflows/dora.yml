@@ -1,0 +1,40 @@
+name: dora-metrics
+
+on:
+  # Refresh the dashboard after every pipeline run on main
+  workflow_run:
+    workflows: [pipeline]
+    types: [completed]
+    branches: [main]
+  # Or run it by hand
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back to measure"
+        type: number
+        default: 30
+
+# Read-only: list workflow runs/jobs and read the code
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: dora-metrics
+  cancel-in-progress: true
+
+jobs:
+  dora:
+    runs-on: ubuntu-26.04
+    steps:
+      # Checks out main so the script that runs is always ours
+      - name: Checkout
+        # checkout v5.1.0
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      # Writes the dashboard to this runs Summary page
+      - name: Calculate DORA metrics
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DAYS: ${{ inputs.days || 30 }}
+        run: python3 scripts/dora.py

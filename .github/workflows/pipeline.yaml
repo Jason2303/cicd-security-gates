@@ -1,3 +1,4 @@
+# Complete CI pipeline
 name: pipeline
 
 # Triggers starting the workflow
@@ -6,12 +7,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Run Github action manually from Github
   workflow_dispatch:
-    inputs:
-      inject_failure:
-        description: "Rollback test: staging's new colour fails /healthz 90 s after it starts"
-        type: boolean
-        default: false
 
 # Environment variables
 env:
@@ -111,7 +108,7 @@ jobs:
   # Static Application Security Testing
   sast:
     runs-on: ubuntu-26.04
-    # Get semgrep from an image
+    # Job runs within the Semgrep container
     container:
       image: semgrep/semgrep
     steps:
@@ -123,7 +120,7 @@ jobs:
       - name: Look for High Severities Only and Fail
         run: semgrep scan --config="p/golang" --severity="ERROR" --error
 
-  # Checks for Go vulnerabilities within the code
+  # Checks for known CVEs in dependencies
   deps:
     runs-on: ubuntu-26.04
     steps:
@@ -144,9 +141,9 @@ jobs:
     needs: [lint, test, sast, deps]
     runs-on: ubuntu-26.04
 
-    # Artifact for later (Repo Digest for the image when pushed to ECR)
+    # Output for later (Repo Digest for the image when pushed to ECR used by Staging and production)
     outputs:
-      # All_Steps.ID.input_or_output.key_value_of_output
+      # steps.<step id>.outputs.<name>
       image: ${{ steps.push.outputs.image }}
 
     steps:
@@ -156,7 +153,6 @@ jobs:
 
       # Build Docker Image
       - name: Build docker image
-        id: build-c
         run: |
           docker build \
             --build-arg GIT_SHA="$IMAGE_TAG" \
@@ -170,7 +166,7 @@ jobs:
           image-ref: "${{ env.LOCAL_IMAGE }}"
           format: "table"
           exit-code: "1"
-          ignore-unfixed: true # Ignore unfixed CVEs
+          ignore-unfixed: true # Don't bother failing on CVEs with no available fix yet
           severity: "CRITICAL"
 
       # Authenticate with AWS using OIDC
@@ -202,34 +198,44 @@ jobs:
           echo "Pushed: $DIGEST"
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
+  # Staging
   staging:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Allow to read code and request an OIDC token for the ECR pull roll
     permissions:
       contents: read
       id-token: write
+    # Uses the deploy.yml to start Staging
     uses: ./.github/workflows/deploy.yml
+    # Inputs passed to deploy.yml
     with:
       environment: staging
       image: ${{ needs.build.outputs.image }}
-      inject_failure: ${{ inputs.inject_failure == true }}
 
+  # Production
   production:
+    # Read image output from build and run after staging job succeeds
     needs: [build, staging]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Allow to read code and request an OIDC token for the ECR pull roll
     permissions:
       contents: read
       id-token: write
+    # Uses the deploy.yml to start Production
     uses: ./.github/workflows/deploy.yml
+    # Inputs passed to deploy.yml
     with:
       environment: production
       image: ${{ needs.build.outputs.image }}
 
+  # Notify job. The last to notify each result from each Job
   notify:
     needs: [lint, test, sast, deps, build, staging, production]
     if: always()
     runs-on: ubuntu-26.04
     steps:
+      # Pipeline summary: Each jobs results including Image digest
       - name: Write pipeline summary
         env:
           EVENT: ${{ github.event_name }}
@@ -242,7 +248,6 @@ jobs:
           STAGING: ${{ needs.staging.result }}
           PRODUCTION: ${{ needs.production.result }}
           IMAGE: ${{ needs.build.outputs.image }}
-          INJECT_FAILURE: ${{ inputs.inject_failure == true }}
         run: |
           icon() {
             case "$1" in
@@ -255,7 +260,7 @@ jobs:
           {
             echo "## Pipeline result"
             echo ""
-            echo "Trigger: \`$EVENT\` · Commit: \`${SHA:0:7}\` · Rollback test: \`$INJECT_FAILURE\`"
+            echo "Trigger: \`$EVENT\` · Commit: \`${SHA:0:7}\`"
             echo ""
             echo "| Stage | Result |"
             echo "|---|---|"
