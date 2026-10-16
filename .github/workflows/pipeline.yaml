@@ -6,6 +6,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      inject_failure:
+        description: "Rollback test: staging's new colour fails /healthz 90 s after it starts"
+        type: boolean
+        default: false
 
 # Environment variables
 env:
@@ -169,7 +175,7 @@ jobs:
 
       # Authenticate with AWS using OIDC
       - name: Configure AWS Credentials
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         # configure-aws-credentials v4.3.1
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
@@ -178,14 +184,14 @@ jobs:
 
       # Log in to ECR
       - name: Log In to ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         id: login-ecr
         # amazon-ecr-login v2.1.7
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
 
       # Tag the Image and Push to ECR
       - name: Tag and push to ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         id: push
         env:
           REMOTE_IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
@@ -198,7 +204,7 @@ jobs:
 
   staging:
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write
@@ -206,10 +212,11 @@ jobs:
     with:
       environment: staging
       image: ${{ needs.build.outputs.image }}
+      inject_failure: ${{ inputs.inject_failure == true }}
 
   production:
     needs: [build, staging]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write

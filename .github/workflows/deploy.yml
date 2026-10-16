@@ -9,6 +9,11 @@ on:
       image:
         required: true
         type: string
+      inject_failure:
+        description: "Rollback test only: the new colour fails /healthz 90 s after it starts"
+        required: false
+        type: boolean
+        default: false
 
 env:
   ACCOUNT_ID: 355119163695

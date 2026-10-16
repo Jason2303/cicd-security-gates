@@ -4,6 +4,15 @@ set -euo pipefail
 NAMESPACE="$1"
 IMAGE="$2"
 
+PF_PID=""
+stop_port_forward() {
+  if [[ -n "$PF_PID" ]]; then
+    kill "$PF_PID" 2>/dev/null || true
+    PF_PID=""
+  fi
+}
+trap stop_port_forward EXIT
+
 LIVE=$(kubectl get svc pulse -n "$NAMESPACE" -o jsonpath='{.spec.selector.color}')
 if [[ "$LIVE" == "blue" ]]; then
   IDLE="green"
@@ -27,16 +36,29 @@ kubectl create secret docker-registry ecr-pull \
   -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
 
+if [[ "${INJECT_FAILURE:-false}" == "true" ]]; then
+  echo "ROLLBACK TEST: $IDLE will fail /healthz 90 s after its pods start"
+  kubectl set env "deployment/pulse-$IDLE" -n "$NAMESPACE" FAIL_HEALTH=true FAIL_HEALTH_AFTER=90s
+else
+  kubectl set env "deployment/pulse-$IDLE" -n "$NAMESPACE" FAIL_HEALTH- FAIL_HEALTH_AFTER-
+fi
+
 kubectl set image "deployment/pulse-$IDLE" pulse="$IMAGE" -n "$NAMESPACE"
 kubectl rollout status "deployment/pulse-$IDLE" -n "$NAMESPACE" --timeout=180s
 kubectl port-forward "svc/pulse-$IDLE" 18080:80 -n "$NAMESPACE" >/dev/null 2>&1 &
 PF_PID=$!
 sleep 3
+if ! kill -0 "$PF_PID" 2>/dev/null; then
+  echo "::error::port-forward on 18080 died (port already in use?)"
+  exit 1
+fi
 
-curl -fsS --retry 5 --retry-delay 2 --retry-connrefused http://127.0.0.1:18080/healthz \
-  || { kill "$PF_PID"; echo "Smoke test FAILED on	 $IDLE"; exit 1; }
+if ! curl -fsS --retry 5 --retry-delay 2 --retry-connrefused http://127.0.0.1:18080/healthz; then
+  echo "::error::Smoke test FAILED on $IDLE"
+  exit 1
+fi
 echo
-kill "$PF_PID" 2>/dev/null || true
+stop_port_forward
 echo "Smoke test passed on $IDLE"
 
 kubectl patch svc pulse -n "$NAMESPACE" -p "{\"spec\":{\"selector\":{\"color\":\"$IDLE\"}}}"
@@ -47,7 +69,12 @@ PF_PID=$!
 sleep 3
 
 HEALTHY=true
+if ! kill -0 "$PF_PID" 2>/dev/null; then
+  echo "port-forward on 18081 died: cannot verify, treating as unhealthy"
+  HEALTHY=false
+fi
 for i in $(seq 1 30); do
+  [[ "$HEALTHY" == "true" ]] || break
   if ! curl -fsS --retry 2 --retry-delay 2 --retry-connrefused http://127.0.0.1:18081/healthz >/dev/null; then
     echo "Health check $i/30 FAILED"
     HEALTHY=false
@@ -56,7 +83,7 @@ for i in $(seq 1 30); do
   echo "Health check $i/30 OK"
   sleep 10
 done
-kill "$PF_PID" 2>/dev/null || true
+stop_port_forward
 
 if [[ "$HEALTHY" == "true" ]]; then
   echo "Deploy OK: $IDLE is live"
